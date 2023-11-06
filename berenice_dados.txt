@@ -1,0 +1,3 @@
+Cod;Nome;Price;Stock
+1234;Brahma;3.48;6
+4321;Oreos;15.00;8
