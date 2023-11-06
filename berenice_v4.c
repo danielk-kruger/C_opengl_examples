@@ -43,6 +43,11 @@ void submenu_vendas();
 void vendas_exec(int opt);
 void realizar_venda();
 
+// Sacola 
+int update_cart(int cod);
+void ordernar_sacola(); // loop
+void reset_sacola(); // 0
+
 // Coleção de dados
 int buscar_cod(char* msg, int (*validar)(int));
 int buscar_quantidade();
@@ -66,6 +71,7 @@ int stricmp(char *s1, char *s2);
 
 
 // Visualizações
+void visualizar_sacola();
 void visualizar_prod(Product prod);
 void visualizar_estoque();
 
@@ -91,12 +97,13 @@ int main() {
     int opc;
     // stock_count = 5;
     p = (Product*)malloc(stock_count * sizeof(Product));
+    sacola = (CartItem *)malloc(sizeof(CartItem));
 
-    if (p == NULL) {
-        printf("Memory allocation failed.\n");
+    if (p == NULL || sacola == NULL){
+        printf("Memory allocation failed...\n");
         exit(1);
     }
-    
+
     // setup_stock();
     do {
         printf("\n\nMenu\n\n");
@@ -112,6 +119,10 @@ int main() {
                 limpar_tela();
                 submenu_produtos();
                 break;
+            case 2:
+                limpar_tela();
+                submenu_vendas();
+                break;
             default:
                 limpar_tela();
                 printf("Opcao invalida. Tente novamente.\n");
@@ -119,6 +130,7 @@ int main() {
     } while (opc != 3);
 
     free(p);
+    free(sacola);
     return 0;
 }
 
@@ -174,6 +186,9 @@ void prod_exec(int opt) {
             break;
         case 6:
             ler_dados("berenice_dados.txt");
+            break;
+        case 7:
+            printf("Voltando...");
             break;
         default:
             printf("Opcao invalida! Tente novamente\n\n");
@@ -401,38 +416,77 @@ void realizar_venda() {
 
     while (1) {
         visualizar_estoque();
-        cod = buscar_cod("\nDigite o código do item desejado: ", valid_product_code);
+        cod = buscar_cod("\nDigite o código do item desejado: ", is_existent);
+
         limpar_tela();
 
+        int update_status = update_cart(cod);
+        if (!update_status)
+            continue;
 
+        printf("Cart updated Successfully!\n");
+        
+        ordernar_sacola();
+        visualizar_sacola();
+
+        // Ver se o usuario quer repetir a venda, em caso de erro ou não
+        if (!authorized){
+            if (cart_counter < 0) return; // Se o carrinho está vazio e não quer fazer venda, sair para o menu principal
+
+            break;
+        }
     }
+
+    // cobrança aqui... 
 }
+
 
 int update_cart(int cod){
     Product item = p[cod];
-    CartItem* new_sacola = (CartItem *) realloc(sacola, (cart_counter+1) * sizeof(CartItem));
-    if (new_sacola == NULL){
-        printf("Memory allocation failed...\n");
-        return;
-    }
-
+    
     int quant = buscar_quantidade();
-    if (quant > item.stock){
+    if (quant > item.stock) {
         printf("\nQuantidade inválida ou insuficiente\n");
         return 0;
     }
-
     item.stock -= quant;
-    int index = pesquisa_sacola(cod, NULL);
-    new_sacola[index].cod = cod;
-    strcpy(new_sacola[index].name, item.name);
-    new_sacola[index].quantity = quant;
-    new_sacola[index].unit_price = item.price;
-    new_sacola[index].subtotal = quant * item.price;
-    
 
+    sacola = (CartItem *) realloc(sacola, (cart_counter+1) * sizeof(CartItem));
+    if (sacola == NULL){
+        printf("Memory allocation failed...\n");
+        exit(1);
+    }
+
+    int index = pesquisa_sacola(cod, NULL); // atualiza existente ou adicionar no fim da sacola, index do item ou -1 
+
+    sacola[index] = (CartItem) { cod, "", quant, item.price, quant * item.price };
+    strcpy(sacola[index].name, item.name);
+
+    item.sales_count += quant;
+
+    // Atualizar com os novos dados
+    p[cod] = item;
+    // sacola = new_sacola;
+    cart_counter++;
+    return 1;
 }
 
+void ordernar_sacola() {
+    int i, j;
+    CartItem key;
+
+    for (i = 1; i < cart_counter; i++) {
+        key = sacola[i];
+        j = i - 1;
+
+        while (j >= 0 && sacola[j].unit_price > key.unit_price) {
+            sacola[j + 1] = sacola[j];
+            j = j - 1;
+        }
+
+        sacola[j + 1] = key;
+    }
+}
 
 int buscar_cod(char* msg, int (*validar)(int)) {
     int cod;
@@ -577,41 +631,58 @@ int pesquisa_prod(int target, void (*callback)(int)) {
 int pesquisa_sacola(int target, int (*callback)(int)) {
     int index;
     
-    for (int i = 0; i < stock_count; i++) {
+    for (int i = 0; i < cart_counter; i++) {
         if (sacola[i].cod == target) {
             if (callback != NULL)
                 callback(i); // execute a callback to process the index
             
-            return i; // callback is null, just return the unprocessed index
+            return (i-1); // callback is null, just return the unprocessed index
         }
     }
 
-    return -1; // Found nothing
+    return cart_counter; // Found nothing
 }
 
 int authorized(char* msg) {
     char opt;
 
-    do {
-        printf("\n%s\n[s] - Sim ou [n] - Não: ", msg);
+    while (1) {
+        printf("%s", msg);
         scanf("%c", &opt);
         getchar();
 
-        opt = tolower(opt);
-        if (opt != 's' || opt != 'n')
-            printf("\nOpcao invalida, escolhe [s] - Sim ou [n] - Não");    
-
-    } while (opt != 's' || opt != 'n');
-
-    if (opt == 's')
-        return 1;
-    else
-        return 0;
+        // validar se escolheu sim ou não para reiniciar a venda
+        // 1 -> true
+        // 0 -> false
+        switch (tolower(opt)){
+            case 's':
+                return 1;
+            case 'n':
+                return 0;
+            default:
+                printf("\nOpção Invalida! Tenta novamente\n");
+        }        
+    }
 }
 
 void limpar_tela() {
     system("clear");
 }
+
+void visualizar_sacola() {
+    printf("\n\t\tSeu carrinho\n\n");
+    if (cart_counter == 0){
+        printf("\nCarrinho está vazio\n");
+        return;
+    }
+    
+    printf("----------------------------------------------------------\n");
+    for (int i = 0; i <= cart_counter; i++)
+        printf("%d. %-15s\t\t\t%d unidades\t\tSubtotal: %.2f\n", sacola[i].cod, sacola[i].name, sacola[i].quantity, sacola[i].subtotal);
+    printf("----------------------------------------------------------\n");
+
+}
+
 
 void visualizar_prod(Product prod) {
     printf("Código\t\tItem\t\tValor\t\tEstoque\n");
