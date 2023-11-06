@@ -97,7 +97,7 @@ int main() {
     int opc;
     // stock_count = 5;
     p = (Product*)malloc(stock_count * sizeof(Product));
-    sacola = (CartItem *)malloc(sizeof(CartItem));
+    sacola = (CartItem *)malloc(cart_counter * sizeof(CartItem));
 
     if (p == NULL || sacola == NULL){
         printf("Memory allocation failed...\n");
@@ -430,7 +430,7 @@ void realizar_venda() {
         visualizar_sacola();
 
         // Ver se o usuario quer repetir a venda, em caso de erro ou não
-        if (!authorized){
+        if (!authorized("Adicionar mais itens?")){
             if (cart_counter < 0) return; // Se o carrinho está vazio e não quer fazer venda, sair para o menu principal
 
             break;
@@ -442,7 +442,7 @@ void realizar_venda() {
 
 
 int update_cart(int cod){
-    Product item = p[cod];
+    Product item = p[cod-1];
     
     int quant = buscar_quantidade();
     if (quant > item.stock) {
@@ -465,7 +465,7 @@ int update_cart(int cod){
     item.sales_count += quant;
 
     // Atualizar com os novos dados
-    p[cod] = item;
+    p[cod-1] = item;
     // sacola = new_sacola;
     cart_counter++;
     return 1;
@@ -636,7 +636,7 @@ int pesquisa_sacola(int target, int (*callback)(int)) {
             if (callback != NULL)
                 callback(i); // execute a callback to process the index
             
-            return (i-1); // callback is null, just return the unprocessed index
+            return i; // callback is null, just return the unprocessed index
         }
     }
 
@@ -647,7 +647,7 @@ int authorized(char* msg) {
     char opt;
 
     while (1) {
-        printf("%s", msg);
+        printf("%s\n[s] - Sim\n[n] - Nao\n=> ", msg);
         scanf("%c", &opt);
         getchar();
 
@@ -670,16 +670,16 @@ void limpar_tela() {
 }
 
 void visualizar_sacola() {
-    printf("\n\t\tSeu carrinho\n\n");
+    printf("\n\n\t\tSeu carrinho\n\n");
     if (cart_counter == 0){
         printf("\nCarrinho está vazio\n");
         return;
     }
     
-    printf("----------------------------------------------------------\n");
-    for (int i = 0; i <= cart_counter; i++)
+    printf("--------------------------------------------------------------------------\n");
+    for (int i = 0; i < cart_counter; i++)
         printf("%d. %-15s\t\t\t%d unidades\t\tSubtotal: %.2f\n", sacola[i].cod, sacola[i].name, sacola[i].quantity, sacola[i].subtotal);
-    printf("----------------------------------------------------------\n");
+    printf("--------------------------------------------------------------------------\n\n");
 
 }
 
