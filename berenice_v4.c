@@ -9,6 +9,7 @@ typedef struct  {
     char name[50];
     float price;
     int stock;
+    int sales_count;
 } Product;
 
 Product* p;
@@ -22,39 +23,53 @@ typedef struct  {
 
 CartItem *sacola;
 
+// Funções de Setup e Menu
 void setup_stock();
+
+
+// Funções Principaís para Produtos
+void submenu_produtos();
+void prod_exec(int opt);
 void cadastrar_estoque();
 void atualizar_estoque(int stock_index);
 void excluir_item(int stock_index);
+void salvar_dados(char* filename);
+void ler_dados(char* filename);
 
+// Funções Principaís para Vendas
+void submenu_vendas();
+void vendas_exec(int opt);
+
+// Coleção de dados
 int buscar_cod(char* msg, int (*validar)(int));
 int buscar_quantidade();
 char* buscar_nome();
 float buscar_stock_value();
 
-void salvar_dados(char* filename);
-void ler_dados(char* filename);
 
+// Validações e Funções utilitárias
 int valid_product_code(int cod);
 int is_existent(int cod);
 int valid_quantity(int qty, int item_estoque);
 int is_natural_number(int num);
-int stricmp(char *s1, char *s2);
+int authorized(char* msg);
 
 void limpar_tela();
 
+// Algoritmos e coisas divertidos 
 int pesquisa_prod(int target, void (*callback)(int));
 int pesquisa_sacola(int target, int (*callback)(int));
+int stricmp(char *s1, char *s2);
 
-void submenu_produtos();
-void prod_exec(int opt);
 
+// Visualizações
 void visualizar_prod(Product prod);
 void visualizar_estoque();
 
 int stock_count = 0;
 
 void setup_stock() {
+    
     Product initial_stock[5] = {
         {1, "Pão de Forma", 7.50, 5},
         {2, "Pão de Centeio", 8.69, 6},
@@ -70,6 +85,7 @@ void setup_stock() {
 
 int main() {    
     int opc;
+    // stock_count = 5;
     p = (Product*)malloc(stock_count * sizeof(Product));
 
     if (p == NULL) {
@@ -77,6 +93,7 @@ int main() {
         exit(1);
     }
     
+    // setup_stock();
     do {
         printf("\n\nMenu\n\n");
         printf("1. Produtos\n");
@@ -131,12 +148,22 @@ void prod_exec(int opt) {
             cadastrar_estoque();
             break;
         case 3:
+            visualizar_estoque();
+
             // procura e atualiza
-            pesquisa_prod(buscar_cod("Qual produto quer atualizar (digite o codigo): ", is_existent), atualizar_estoque);
+            int update_status = pesquisa_prod(buscar_cod("Qual produto quer atualizar (digite o codigo): ", is_existent), atualizar_estoque);
+
+            if (update_status < 0)
+                printf("\nProduto não encontrado!\n");
             break;
         case 4:
+            visualizar_estoque();
+
             // procura e excluir
-            pesquisa_prod(buscar_cod("Digite o codigo do produto para excluir: ", is_existent), excluir_item);
+            int del_status = pesquisa_prod(buscar_cod("Digite o codigo do produto para excluir: ", is_existent), excluir_item);
+
+            if (del_status < 0)
+                printf("\nProduto não encontrado!\n");
             break;
         case 5:
             salvar_dados("berenice_dados.txt");
@@ -198,13 +225,16 @@ void atualizar_estoque(int stock_index) {
                 printf("\nATUALIZAR CODIGO\n");
                 int current_cod = prod.cod;
                 int new_cod = buscar_cod("Digite o novo codigo: ", valid_product_code);
+
                 prod.cod = new_cod;
+                printf("\n\nAtualizado %d para %d com sucesso\n", current_cod, new_cod);
                 break;
             // Atualizar Nome do produto
             case 2:
                 printf("\nATUALIZAR NOME DO PRODUTO\n");
                 const char* current_name = prod.name; // Use const to indicate it's a pointer to a constant string
                 char* novo_nome = buscar_nome();
+
                 strcpy(prod.name, novo_nome);
                 printf("\n\nAtualizado %s para %s com sucesso\n", current_name, novo_nome);
                 break;
@@ -213,6 +243,7 @@ void atualizar_estoque(int stock_index) {
                 printf("\nATUALIZAR VALOR DO PRODUTO\n");
                 float current_price = prod.price;
                 float new_value = buscar_stock_value();
+
                 prod.price = new_value;
                 printf("\n\nAtualizado %.2f para %.2f com sucesso\n", current_price, new_value);
                 break;
@@ -221,6 +252,7 @@ void atualizar_estoque(int stock_index) {
                 printf("\nATUALIZAR ESTOQUE\n");
                 int current_stock = prod.stock;
                 int new_stock = buscar_quantidade();
+
                 prod.stock = new_stock;
                 printf("\n\nAtualizado %d para %d com sucesso\n", current_stock, new_stock);
                 break;
@@ -237,32 +269,43 @@ void atualizar_estoque(int stock_index) {
 }
 
 void excluir_item(int stock_index) {
-    // mandar o produto para excluir pro fim do vetor
-    for (int j = stock_index; j < stock_count - 1; j++) {
-        p[j] = p[j+1];
+    // Confirmar se o usuario realmente quer excluir o produto
+    if (authorized("Realmente quer excluir este produto?")) {
+        // mandar o produto para excluir pro fim do vetor
+        for (int j = stock_index; j < stock_count - 1; j++) {
+            p[j] = p[j+1];
+        }
+
+        stock_count--;
+
+        p = (Product *)realloc(p, sizeof(Product) * stock_count);
+        if (p == NULL){
+            printf("\nMemory error\n");
+            exit(1);
+        }
+
+        printf("\nProduct with codigo  %d deleted.\n", stock_index+1);
+    } else {
+        printf("\n\nExcluição cancelado...\n");
     }
-
-    stock_count--;
-
-    p = (Product*)realloc(p, sizeof(Product) * stock_count);
-    if (p == NULL){
-        printf("\nMemory error\n");
-        exit(1);
-    }
-
-    printf("\nProduct with codigo  %d deleted.\n", stock_index+1);
 }
 
 void salvar_dados(char* filename) {
     FILE* arq = fopen(filename, "w");
-    if (arq == NULL){
+    if (arq == NULL) {
         perror("Error opening file");
         return;
     }
 
-    fprintf(arq, "Cod;Nome;Price;Stock\n");
-    for (int i = 0; i < stock_count; i++)
-        fprintf(arq, "%d;%s;%.2f;%d\n", p[i].cod, p[i].name, p[i].price, p[i].stock);
+    fprintf(arq, "%d\n\n", stock_count); // quantidade_produtos
+
+    for (int i = 0; i < stock_count; i++) {
+        fprintf(arq, "%d\n", p[i].cod);
+        fprintf(arq, "%s\n", p[i].name);
+        fprintf(arq, "%.2f\n", p[i].price);
+        fprintf(arq, "%d\n", p[i].stock);
+        fprintf(arq, "%d\n\n", p[i].sales_count); // Initialize quant_vendida as 0
+    }
 
     fclose(arq);
 }
@@ -275,34 +318,79 @@ void ler_dados(char* filename) {
         return;
     }
 
-    // Pular a primeira linha de cabecalhos
-    char line[256];
-    fgets(line, sizeof(line), file);
+    int num_products;
 
-    // Ler dados do arquivo linha por linha
-    while (fgets(line, sizeof(line), file)) {
-        int cod, stock;
-        float price;
-        char name[50];
+    if (fscanf(file, "%d", &num_products) != 1) {
+        perror("Error reading the number of products");
+        fclose(file);
+        return;
+    }
 
-        if (sscanf(line, "%d;%[^;];%f;%d", &cod, name, &price, &stock) == 4) {
-            Product product = {cod, "", price, stock};
-            strncpy(product.name, name, sizeof(product.name) - 1);
+    // Initialize or resize 'p' to accommodate the number of products
+    p = realloc(p, num_products * sizeof(Product));
+    if (p == NULL) {
+        perror("Memory allocation failed");
+        fclose(file);
+        return;
+    }
 
-            p = realloc(p, (stock_count + 1) * sizeof(Product));
-            if (p == NULL) {
-                perror("Memory allocation failed");
-                fclose(file);
-                return;
-            }
+    stock_count = num_products;
 
-            p[stock_count] = product;
-            stock_count++;
+    for (int i = 0; i < num_products; i++) {
+        if (fscanf(file, "%d\n%49[^\n]\n%f\n%d\n", &p[i].cod, p[i].name, &p[i].price, &p[i].stock) != 4) {
+            perror("Error reading product data");
+            break;
         }
+
+        int quant_vendida;
+        if (i < num_products - 1) { // verificar se não estamos lendo o último linha no arquivo, pois estamos separar os produtos com "\n"
+            if (fscanf(file, "%d\n", &quant_vendida) != 1) { // Ler um vaor inteiro seguido com "\n"
+                perror("Error reading product quant_vendida");
+                break;
+            }
+        }
+
+        p[i].sales_count = quant_vendida;
     }
 
     fclose(file); // Close the file when done
 }
+
+// NOTE VENDAS 
+
+void submenu_vendas() {
+    int opt;
+    
+    do {
+        printf("\nProdutos\n");
+        printf("1. Realizar venda\n");
+        printf("2. Relatório de vendas\n");
+        printf("3. Voltar\n");
+
+        printf("Digite opcao: ");
+        scanf("%d", &opt);
+        
+        // Executar a opcao selecionado
+        vendas_exec(opt);
+    } while (opt != 7);
+}
+
+void vendas_exec(int opt) {
+    switch (opt) {
+        case 1:
+            break;
+        case 2:
+
+            break;
+        case 3:
+            printf("\nVoltando...\n");
+            break;
+        default:
+            printf("Opção Invalida, tenta novamente...");
+            break;
+    }
+}
+
 
 int buscar_cod(char* msg, int (*validar)(int)) {
     int cod;
@@ -386,6 +474,13 @@ float buscar_stock_value(){
     return valor;
 }
 
+
+
+
+
+
+// Validações e Funções utilitárias
+
 int valid_quantity(int qty, int item_estoque) {
     if (qty <= item_estoque)
         return 1;
@@ -454,6 +549,26 @@ int pesquisa_sacola(int target, int (*callback)(int)) {
     }
 
     return -1; // Found nothing
+}
+
+int authorized(char* msg) {
+    char opt;
+
+    do {
+        printf("\n%s\n[s] - Sim ou [n] - Não: ", msg);
+        scanf("%c", &opt);
+        getchar();
+
+        opt = tolower(opt);
+        if (opt != 's' || opt != 'n')
+            printf("\nOpcao invalida, escolhe [s] - Sim ou [n] - Não");    
+
+    } while (opt != 's' || opt != 'n');
+
+    if (opt == 's')
+        return 1;
+    else
+        return 0;
 }
 
 void limpar_tela() {
