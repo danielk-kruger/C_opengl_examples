@@ -16,8 +16,10 @@ Product* p;
 
 // Define cart item structure
 typedef struct  {
-    int productIndex;
+    int cod;
+    char name[50];
     int quantity;
+    float unit_price;
     float subtotal;
 } CartItem;
 
@@ -39,6 +41,7 @@ void ler_dados(char* filename);
 // Funções Principaís para Vendas
 void submenu_vendas();
 void vendas_exec(int opt);
+void realizar_venda();
 
 // Coleção de dados
 int buscar_cod(char* msg, int (*validar)(int));
@@ -67,6 +70,7 @@ void visualizar_prod(Product prod);
 void visualizar_estoque();
 
 int stock_count = 0;
+int cart_counter = 0;
 
 void setup_stock() {
     
@@ -378,6 +382,7 @@ void submenu_vendas() {
 void vendas_exec(int opt) {
     switch (opt) {
         case 1:
+            realizar_venda();
             break;
         case 2:
 
@@ -389,6 +394,43 @@ void vendas_exec(int opt) {
             printf("Opção Invalida, tenta novamente...");
             break;
     }
+}
+
+void realizar_venda() {
+    int cod;
+
+    while (1) {
+        visualizar_estoque();
+        cod = buscar_cod("\nDigite o código do item desejado: ", valid_product_code);
+        limpar_tela();
+
+
+    }
+}
+
+int update_cart(int cod){
+    Product item = p[cod];
+    CartItem* new_sacola = (CartItem *) realloc(sacola, (cart_counter+1) * sizeof(CartItem));
+    if (new_sacola == NULL){
+        printf("Memory allocation failed...\n");
+        return;
+    }
+
+    int quant = buscar_quantidade();
+    if (quant > item.stock){
+        printf("\nQuantidade inválida ou insuficiente\n");
+        return 0;
+    }
+
+    item.stock -= quant;
+    int index = pesquisa_sacola(cod, NULL);
+    new_sacola[index].cod = cod;
+    strcpy(new_sacola[index].name, item.name);
+    new_sacola[index].quantity = quant;
+    new_sacola[index].unit_price = item.price;
+    new_sacola[index].subtotal = quant * item.price;
+    
+
 }
 
 
@@ -475,10 +517,6 @@ float buscar_stock_value(){
 }
 
 
-
-
-
-
 // Validações e Funções utilitárias
 
 int valid_quantity(int qty, int item_estoque) {
@@ -540,7 +578,7 @@ int pesquisa_sacola(int target, int (*callback)(int)) {
     int index;
     
     for (int i = 0; i < stock_count; i++) {
-        if (sacola[i].productIndex == target) {
+        if (sacola[i].cod == target) {
             if (callback != NULL)
                 callback(i); // execute a callback to process the index
             
