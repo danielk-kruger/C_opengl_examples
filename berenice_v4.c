@@ -416,6 +416,7 @@ void realizar_venda() {
     float total;
 
     while (1) {
+        limpar_tela();
         visualizar_estoque();
         cod = buscar_cod("\nDigite o código do item desejado: ", is_existent);
 
@@ -423,7 +424,7 @@ void realizar_venda() {
         if (!update_cart(cod)) // senao atualizou com successo, repetir o loop
             continue;
 
-        printf("Cart updated Successfully!\n");
+        printf("\n%s adicionado na sacola com sucesso\n", p[pesquisa_prod(cod, NULL)].name);
         
         ordernar_sacola();
         visualizar_sacola();
@@ -552,7 +553,6 @@ void save_compra_to_file(float total) {
 
 
 // Cobrança
-
 void cobrar(int forma_pgto, int total) {
     switch (forma_pgto) {
         case 1:
@@ -857,14 +857,13 @@ int pesquisa_sacola(int target, int (*callback)(int)) {
     return cart_counter; // Found nothing
 }
 
-
-
 void limpar_tela() {
     system("clear");
 }
 
 void visualizar_sacola() {
-    printf("\n\n\t\tSeu carrinho\n\n");
+    limpar_tela();
+    printf("\n\n\t\t\tSeu carrinho\n\n");
     if (cart_counter == 0){
         printf("\nCarrinho está vazio\n");
         return;
@@ -872,7 +871,7 @@ void visualizar_sacola() {
     
     printf("--------------------------------------------------------------------------\n");
     for (int i = 0; i < cart_counter; i++)
-        printf("%d. %-15s\t\t\t%d unidades\t\tSubtotal: %.2f\n", sacola[i].cod, sacola[i].name, sacola[i].quantity, sacola[i].subtotal);
+        printf("%d. %-15s\t\t\t%d unidades\t\tSubtotal: R$ %.2f\n", sacola[i].cod, sacola[i].name, sacola[i].quantity, sacola[i].subtotal);
     printf("--------------------------------------------------------------------------\n\n");
 
 }
@@ -934,17 +933,15 @@ void visualizar_formas_pgto() {
 }
 
 void visualizar_relatorio() {
-    // Print table header
+    limpar_tela();
     printf("-------------------------------------------------------------------------------------------------------------------------\n");
     printf("| Codigo\t|\tNome\t\t\t|\t Quantidade Total\t|\tPreco Unidade\t|\tValor Total\t|\n");
     printf("-------------------------------------------------------------------------------------------------------------------------\n");
 
-    // Print each row of the table
-    for (int i = 0; i < stock_count; i++) {
-        printf("|%3d\t|\t%-20s\t|\t%3d\t\t\t|\t%.2f\t\t|\t%.2f\t\t|\n", p[i].cod, p[i].name, p[i].sales_count, p[i].price, (p[i].sales_count * p[i].price));
-    }
+    for (int i = 0; i < stock_count; i++)
+        printf("|%3d\t|\t%-20s\t|\t%3d\t\t\t|\tR$ %.2f\t\t|\tR$ %.2f\t\t|\n", p[i].cod, p[i].name, p[i].sales_count, p[i].price, (p[i].sales_count * p[i].price));
 
-    // Print table footer
+
     printf("-------------------------------------------------------------------------------------------------------------------------\n");
 }
 
