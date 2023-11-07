@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 // Define product structure
 typedef struct  {
@@ -25,10 +26,6 @@ typedef struct  {
 
 CartItem *sacola;
 
-// Funções de Setup e Menu
-void setup_stock();
-
-
 // Funções Principaís para Produtos
 void submenu_produtos();
 void prod_exec(int opt);
@@ -42,15 +39,15 @@ void ler_dados(char* filename);
 void submenu_vendas();
 void vendas_exec(int opt);
 void realizar_venda();
-void realorio_vendas();
 
 // Sacola 
 int update_cart(int cod);
 void ordernar_sacola(); // loop
 void reset_sacola(); // 0
+void save_compra_to_file(float total);
 
 
-// Cobranças
+// Cobranças e Calculos 
 void cobrar(int forma_pgto, int total);
 float calc_total();
 void faturar_vista(float total);
@@ -84,7 +81,6 @@ int stricmp(char *s1, char *s2);
 
 // Visualizações
 void visualizar_sacola();
-void visualizar_prod(Product prod);
 void visualizar_estoque();
 void visualizar_compra(float total);
 void visualizar_formas_pgto();
@@ -93,24 +89,8 @@ void visualizar_relatorio();
 int stock_count = 0;
 int cart_counter = 0;
 
-void setup_stock() {
-    
-    Product initial_stock[5] = {
-        {1, "Pão de Forma", 7.50, 5},
-        {2, "Pão de Centeio", 8.69, 6},
-        {3, "Broa de Milho", 5.0, 2},
-        {4, "Sonho", 4.5, 3},
-        {5, "Tubaína", 3.25, 8}
-    };
-
-    for (int i = 0; i < stock_count; i++) {
-        p[i] = initial_stock[i];
-    }
-}
-
 int main() {    
     int opc;
-    // stock_count = 5;
     p = (Product*)malloc(stock_count * sizeof(Product));
     sacola = (CartItem *)malloc(cart_counter * sizeof(CartItem));
 
@@ -119,7 +99,6 @@ int main() {
         exit(1);
     }
 
-    // setup_stock();
     do {
         printf("\n\nMenu\n\n");
         printf("1. Produtos\n");
@@ -196,10 +175,10 @@ void prod_exec(int opt) {
                 printf("\nProduto não encontrado!\n");
             break;
         case 5:
-            salvar_dados("berenice_dados.txt");
+            salvar_dados("berenice_dados.bin");
             break;
         case 6:
-            ler_dados("berenice_dados.txt");
+            ler_dados("berenice_dados.bin");
             break;
         case 7:
             printf("Voltando...");
@@ -235,12 +214,12 @@ void cadastrar_estoque() {
 }
 
 void atualizar_estoque(int stock_index) {
-    visualizar_estoque();
+    
     int opt;
     Product prod = p[stock_index];
     
     do {
-        visualizar_prod(prod);
+        visualizar_estoque();
         printf("\n\nAtualizacao\n");
         printf("1. Codigo\n");
         printf("2. Nome\n");
@@ -324,27 +303,24 @@ void excluir_item(int stock_index) {
 }
 
 void salvar_dados(char* filename) {
-    FILE* arq = fopen(filename, "w");
+    FILE* arq = fopen(filename, "wb");
     if (arq == NULL) {
         perror("Error opening file");
         return;
     }
 
-    fprintf(arq, "%d\n\n", stock_count); // quantidade_produtos
+    fwrite(&stock_count, sizeof(int), 1, arq);
 
     for (int i = 0; i < stock_count; i++) {
-        fprintf(arq, "%d\n", p[i].cod);
-        fprintf(arq, "%s\n", p[i].name);
-        fprintf(arq, "%.2f\n", p[i].price);
-        fprintf(arq, "%d\n", p[i].stock);
-        fprintf(arq, "%d\n\n", p[i].sales_count); // Initialize quant_vendida as 0
+        fwrite(&p[i], sizeof(Product), 1, arq);
     }
 
     fclose(arq);
 }
 
+// Ler dados em formato binaria 
 void ler_dados(char* filename) {
-    FILE* file = fopen(filename, "r");
+    FILE* file = fopen(filename, "rb"); 
 
     if (file == NULL) {
         perror("Error opening file");
@@ -353,13 +329,12 @@ void ler_dados(char* filename) {
 
     int num_products;
 
-    if (fscanf(file, "%d", &num_products) != 1) {
+    if (fread(&num_products, sizeof(int), 1, file) != 1) {
         perror("Error reading the number of products");
         fclose(file);
         return;
     }
 
-    // Initialize or resize 'p' to accommodate the number of products
     p = realloc(p, num_products * sizeof(Product));
     if (p == NULL) {
         perror("Memory allocation failed");
@@ -370,23 +345,13 @@ void ler_dados(char* filename) {
     stock_count = num_products;
 
     for (int i = 0; i < num_products; i++) {
-        if (fscanf(file, "%d\n%49[^\n]\n%f\n%d\n", &p[i].cod, p[i].name, &p[i].price, &p[i].stock) != 4) {
+        if (fread(&p[i], sizeof(Product), 1, file) != 1) {
             perror("Error reading product data");
             break;
         }
-
-        int quant_vendida;
-        if (i < num_products - 1) { // verificar se não estamos lendo o último linha no arquivo, pois estamos separar os produtos com "\n"
-            if (fscanf(file, "%d\n", &quant_vendida) != 1) { // Ler um vaor inteiro seguido com "\n"
-                perror("Error reading product quant_vendida");
-                break;
-            }
-        }
-
-        p[i].sales_count = quant_vendida;
     }
 
-    fclose(file); // Close the file when done
+    fclose(file);
 }
 
 // NOTE VENDAS 
@@ -414,7 +379,7 @@ void vendas_exec(int opt) {
             realizar_venda();
             break;
         case 2:
-
+            visualizar_relatorio();
             break;
         case 3:
             printf("\nVoltando...\n");
@@ -451,12 +416,10 @@ void realizar_venda() {
     }
 
     total = calc_total();
-
-    // Visualizar o cupom fiscal
     visualizar_compra(total);
     
+    // se nao quer pagar, retornar os produtos e apagar tudo na sacola
     if (!authorized("Gostaria de pagar? ")) {
-        // se nao quer pagar, retornar os produtos e apagar tudo na sacola
         for (int i = 0; i < stock_count; i++) 
             for (int j = 0; j < cart_counter; j++)
                 if (sacola[j].cod == p[i].cod)
@@ -467,10 +430,11 @@ void realizar_venda() {
     }
         
     cobrar(buscar_forma_de_pagamento(), total);
+    save_compra_to_file(total);
+    
     reset_sacola();
 }
 
-// TODO put back the stock items if the user cancels
 int update_cart(int cod){
     int product_index = pesquisa_prod(cod, NULL);
     Product item = p[product_index]; // procurar o index do nosso item
@@ -497,8 +461,8 @@ int update_cart(int cod){
 
     // Atualizar com os novos dados
     p[product_index] = item;
-    // sacola = new_sacola;
     cart_counter++;
+
     return 1;
 }
 
@@ -510,7 +474,7 @@ void ordernar_sacola() {
         key = sacola[i];
         j = i - 1;
 
-        while (j >= 0 && sacola[j].unit_price > key.unit_price) {
+        while (j >= 0 && sacola[j].subtotal < key.subtotal) {
             sacola[j + 1] = sacola[j];
             j = j - 1;
         }
@@ -530,6 +494,43 @@ void reset_sacola() {
         exit(1);
     }
 }
+
+void save_compra_to_file(float total) {
+    time_t now;
+    struct tm *timeinfo;
+    char filename[50];
+
+    time(&now);
+    timeinfo = localtime(&now);
+    strftime(filename, sizeof(filename), "%Y-%m-%d_%H-%M-%S.txt", timeinfo);
+
+    FILE* file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    fprintf(file, "\n\n\t\t\t\t\tReceipt\n\n\n");
+    fprintf(file, "Seq\t\tItem Name\t\tValor Unit\t\tQuantity\tSubtotal\n");
+    fprintf(file, "----------------------------------------------------------------------------------------\n");
+
+    for (int i = 0; i < cart_counter; i++) {
+        fprintf(
+            file,
+            "%d\t\t%-15s\t\tR$ %.2f\t\t\t%d\t\tR$ %.2f\n",
+            i + 1, sacola[i].name, sacola[i].unit_price, sacola[i].quantity, sacola[i].subtotal
+        );
+    }
+
+    fprintf(file, "----------------------------------------------------------------------------------------\n");
+    fprintf(file, "Total\t\t\t\t\t\t\t\t\t\tR$ %.2f\n", total);
+    fprintf(file, "----------------------------------------------------------------------------------------\n");
+
+    fclose(file);
+}
+
+
+// Cobrança
 
 void cobrar(int forma_pgto, int total) {
     switch (forma_pgto) {
@@ -642,11 +643,6 @@ int buscar_forma_de_pagamento() {
     return opt;
 }
 
-/**
- * @brief 
- * 
- * @return int 
- */
 int buscar_parcelas() {
     int parcelas;
 
@@ -738,9 +734,9 @@ float buscar_stock_value(){
         printf("\nDigite o valor do produto: ");
         scanf("%f", &valor);
 
-        if (valor <= 0) {
+        if (valor <= 0)
             printf("\nInvalid value, digite novamente!\n");
-        }
+            
     } while (valor <= 0);
 
     return valor;
@@ -748,6 +744,28 @@ float buscar_stock_value(){
 
 
 // Validações e Funções utilitárias
+
+int authorized(char* msg) {
+    char opt;
+
+    while (1) {
+        printf("%s\n[s] - Sim\n[n] - Nao\n=> ", msg);
+        scanf("%c", &opt);
+        getchar();
+
+        // validar se escolheu sim ou não para reiniciar a venda
+        // 1 -> true
+        // 0 -> false
+        switch (tolower(opt)){
+            case 's':
+                return 1;
+            case 'n':
+                return 0;
+            default:
+                printf("\nOpção Invalida! Tenta novamente\n");
+        }        
+    }
+}
 
 int valid_quantity(int qty, int item_estoque) {
     if (qty <= item_estoque)
@@ -777,6 +795,8 @@ int is_natural_number(int num) {
     return num > 0;
 }
 
+
+// Algoritmos e coisas divertidos 
 int stricmp(char *s1, char *s2) {
     while (*s1 && *s2) {
         if (tolower((unsigned char) *s1) != tolower((unsigned char) *s2))
@@ -819,27 +839,7 @@ int pesquisa_sacola(int target, int (*callback)(int)) {
     return cart_counter; // Found nothing
 }
 
-int authorized(char* msg) {
-    char opt;
 
-    while (1) {
-        printf("%s\n[s] - Sim\n[n] - Nao\n=> ", msg);
-        scanf("%c", &opt);
-        getchar();
-
-        // validar se escolheu sim ou não para reiniciar a venda
-        // 1 -> true
-        // 0 -> false
-        switch (tolower(opt)){
-            case 's':
-                return 1;
-            case 'n':
-                return 0;
-            default:
-                printf("\nOpção Invalida! Tenta novamente\n");
-        }        
-    }
-}
 
 void limpar_tela() {
     system("clear");
@@ -857,15 +857,6 @@ void visualizar_sacola() {
         printf("%d. %-15s\t\t\t%d unidades\t\tSubtotal: %.2f\n", sacola[i].cod, sacola[i].name, sacola[i].quantity, sacola[i].subtotal);
     printf("--------------------------------------------------------------------------\n\n");
 
-}
-
-void visualizar_prod(Product prod) {
-    printf("Código\t\tItem\t\tValor\t\tEstoque\n");
-    printf("-------------------------------------------------------\n");
-
-    printf("%d\t\t%-15s\t- R$ %.2f\t%d\n", prod.cod, prod.name, prod.price, prod.stock);
-
-    printf("-------------------------------------------------------\n");
 }
 
 void visualizar_estoque() {
@@ -919,14 +910,15 @@ void visualizar_formas_pgto() {
 void visualizar_relatorio() {
     // Print table header
     printf("-------------------------------------------------------------------------------------------------------------------------\n");
-    printf("| SEQ\t|\tNome\t\t\t|\t Quantidade Total\t|\tPreco Unidade\t|\tValor Total\t|\n");
+    printf("| Codigo\t|\tNome\t\t\t|\t Quantidade Total\t|\tPreco Unidade\t|\tValor Total\t|\n");
     printf("-------------------------------------------------------------------------------------------------------------------------\n");
 
     // Print each row of the table
-    for (int i = 0; i < 5; i++) {
-        printf("|%3d\t|\t%-20s\t|\t%3d\t\t\t|\t%.2f\t\t|\t%.2f\t\t|\n", i, produtos[i], total_quantidades[i], precos[i], total_vendas[i]);
+    for (int i = 0; i < stock_count; i++) {
+        printf("|%3d\t|\t%-20s\t|\t%3d\t\t\t|\t%.2f\t\t|\t%.2f\t\t|\n", p[i].cod, p[i].name, p[i].sales_count, p[i].price, (p[i].sales_count * p[i].price));
     }
 
     // Print table footer
     printf("-------------------------------------------------------------------------------------------------------------------------\n");
 }
+
