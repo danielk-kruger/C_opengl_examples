@@ -77,9 +77,9 @@ int pesquisa_prod(int target, void (*callback)(int)); // pesquisar os dados de e
 int pesquisa_sacola(int target, int (*callback)(int)); //  pesquisar os dados na sacola e executar um funçao como atualizar, excluir, ou qualquer funçao para o index encontrado
 int stricmp(char *s1, char *s2); // Função de comparação de string personalizada que não diferencia maiúsculas de minúsculas
 
-
 // Visualizações
 void visualizar_sacola();
+void visualizar_produto(Product prod);
 void visualizar_estoque();
 void visualizar_compra(float total);
 void visualizar_formas_pgto();
@@ -151,10 +151,11 @@ void submenu_produtos() {
 }
 
 void prod_exec(int opt) {
+    limpar_tela();
+    
     int update_status, del_status;
 
-    switch (opt)
-    {
+    switch (opt) {
         case 1:
             visualizar_estoque();
             break;
@@ -162,22 +163,34 @@ void prod_exec(int opt) {
             cadastrar_estoque();
             break;
         case 3:
+            visualizar_estoque();
             update_status = pesquisa_prod(buscar_cod("codigo do produto para atualizar: ", is_existent), atualizar_estoque); // procura e atualiza
             if (update_status < 0)
                 printf("\nProduto não encontrado!\n");
 
             break;
         case 4:
+            visualizar_estoque();
             del_status = pesquisa_prod(buscar_cod("codigo do produto para excluir: ", is_existent), excluir_item); // procura e excluir
 
             if (del_status < 0)
                 printf("\nProduto não encontrado!\n");
             break;
         case 5:
-            salvar_dados("berenice_dados.bin");
+            // senao autorizado, cancelar
+            if (!authorized("\nA leitura dos dados substituirá o estoque armazenado. Gostaria de continuar?\n"))
+                printf("\nCancelando leitura de dados...\n");
+            else
+                salvar_dados("berenice_dados.bin");
+
             break;
         case 6:
-            ler_dados("berenice_dados.bin");
+            // senao autorizado, cancelar
+            if (!authorized("A leitura dos dados substituirá seu estoque atual. Gostaria de continuar?"))
+                printf("\nCancelando leitura de dados...\n");
+            else
+                ler_dados("berenice_dados.bin");
+            
             break;
         case 7:
             printf("Voltando...");
@@ -191,6 +204,7 @@ void prod_exec(int opt) {
 
 
 void cadastrar_estoque() {
+    // limpar_tela();
     Product* new_prod = (Product *) realloc(p, (stock_count+1) * sizeof(Product));
     if (new_prod == NULL){
         printf("Memory allocation failed...\n");
@@ -198,7 +212,7 @@ void cadastrar_estoque() {
     }
 
     int cod = buscar_cod("Digite o codigo do cadastro: ", valid_product_code);
-    char* nome = buscar_nome(); // DONE validate if the name does not exist already
+    char* nome = buscar_nome();
     int quantidade = buscar_quantidade();
     float valor = buscar_stock_value();
     
@@ -209,16 +223,17 @@ void cadastrar_estoque() {
     p[stock_count].stock = quantidade;
     p[stock_count].price = valor;
 
+    limpar_tela();
+    printf("\nCadastro feito com successo!\n");
     stock_count++;
 }
 
 void atualizar_estoque(int stock_index) {
-    
     int opt;
     Product prod = p[stock_index];
     
     do {
-        visualizar_estoque();
+        visualizar_produto(prod);
         printf("\n\nAtualizacao\n");
         printf("1. Codigo\n");
         printf("2. Nome\n");
@@ -266,7 +281,7 @@ void atualizar_estoque(int stock_index) {
                 printf("\n\nAtualizado %d para %d com sucesso\n", current_stock, new_stock);
                 break;
             case 5:
-                printf("\nSaindo...\n");
+                printf("\nSalvando mudanças...\n");
                 break;
             default:
                 printf("\nOpção inválida... tente novamente\n");
@@ -278,27 +293,30 @@ void atualizar_estoque(int stock_index) {
 }
 
 void excluir_item(int stock_index) {
-    visualizar_estoque();
+    limpar_tela();
+    visualizar_produto(p[stock_index]);
 
     // Confirmar se o usuario realmente quer excluir o produto
-    if (authorized("Realmente quer excluir este produto?")) {
-        // mandar o produto para excluir pro fim do vetor
-        for (int j = stock_index; j < stock_count - 1; j++) {
-            p[j] = p[j+1];
-        }
-
-        stock_count--;
-
-        p = (Product *)realloc(p, sizeof(Product) * stock_count);
-        if (p == NULL){
-            printf("\nMemory error\n");
-            exit(1);
-        }
-
-        printf("\nProduct with codigo  %d deleted.\n", stock_index+1);
-    } else {
+    if (!authorized("Realmente quer excluir este produto?")) {
         printf("\n\nExcluição cancelado...\n");
+        return;
     }
+
+    // mandar o produto para excluir pro fim do vetor
+    for (int j = stock_index; j < stock_count - 1; j++) {
+        p[j] = p[j+1];
+    }
+
+    stock_count--;
+
+    p = (Product *)realloc(p, sizeof(Product) * stock_count);
+    if (p == NULL){
+        printf("\nMemory error\n");
+        exit(1);
+    }
+
+    limpar_tela();
+    printf("\nProduto %s com codigo %d excluido.\n", p[stock_index].name, stock_index+1);
 }
 
 void salvar_dados(char* filename) {
@@ -314,6 +332,8 @@ void salvar_dados(char* filename) {
         fwrite(&p[i], sizeof(Product), 1, arq);
     }
 
+    limpar_tela();
+    printf("\nDados de estoque armazenados no arquivo: %s\n", filename);
     fclose(arq);
 }
 
@@ -350,6 +370,8 @@ void ler_dados(char* filename) {
         }
     }
 
+    limpar_tela();
+    printf("\nDados de estoque lidos do arquivo: %s\n", filename);
     fclose(file);
 }
 
@@ -748,12 +770,9 @@ int authorized(char* msg) {
 
     while (1) {
         printf("%s\n[s] - Sim\n[n] - Nao\n=> ", msg);
-        scanf("%c", &opt);
+        scanf(" %c", &opt);
         getchar();
 
-        // validar se escolheu sim ou não para reiniciar a venda
-        // 1 -> true
-        // 0 -> false
         switch (tolower(opt)){
             case 's':
                 return 1;
@@ -761,6 +780,7 @@ int authorized(char* msg) {
                 return 0;
             default:
                 printf("\nOpção Invalida! Tenta novamente\n");
+                break;
         }        
     }
 }
@@ -782,11 +802,11 @@ int is_existent(int cod) {
 }
 
 int valid_product_code(int cod) {
-    if (pesquisa_prod(cod, NULL) > 0){
-        return 1;
+    if (pesquisa_prod(cod, NULL) < 0){
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
 int is_natural_number(int num) {
@@ -857,21 +877,29 @@ void visualizar_sacola() {
 
 }
 
+void visualizar_produto(Product prod) {
+    printf("\n\nCódigo\t\tItem\t\tValor\t\tEstoque\n");
+    printf("-------------------------------------------------------\n");
+    printf("%d\t\t%-25s\t- R$ %.2f\t%d\n", prod.cod, prod.name, prod.price, prod.stock);
+    printf("-------------------------------------------------------\n\n");
+}
+
+
 void visualizar_estoque() {
-    printf("Código\t\tItem\t\tValor\t\tEstoque\n");
+    printf("\n\nCódigo\t\tItem\t\tValor\t\tEstoque\n");
     printf("-------------------------------------------------------\n");
 
     for (int i = 0; i < stock_count; i++) {
         printf("%d\t\t%-25s\t- R$ %.2f\t%d\n", p[i].cod, p[i].name, p[i].price, p[i].stock);
     }
 
-    printf("-------------------------------------------------------\n");
+    printf("-------------------------------------------------------\n\n");
 }
 
 void visualizar_compra(float total) {
     limpar_tela();
 
-    printf("\n\n\t\t\t\t\tReceipt\n\n\n");
+    printf("\n\n\t\t\t\t\tVoucher da Compra\n\n\n");
     printf("Seq\t\tItem Name\t\tValor Unit\t\tQuantity\tSubtotal\n");
     printf("----------------------------------------------------------------------------------------\n");
 
