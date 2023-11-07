@@ -42,18 +42,30 @@ void ler_dados(char* filename);
 void submenu_vendas();
 void vendas_exec(int opt);
 void realizar_venda();
+void realorio_vendas();
 
 // Sacola 
 int update_cart(int cod);
 void ordernar_sacola(); // loop
 void reset_sacola(); // 0
 
+
+// Cobranças
+void cobrar(int forma_pgto, int total);
+float calc_total();
+void faturar_vista(float total);
+void faturar_prazo(float total);
+float calc_desconto_vista(float total);
+float acrescentar_prazo(float total, int parcelas);
+
+
 // Coleção de dados
 int buscar_cod(char* msg, int (*validar)(int));
 int buscar_quantidade();
 char* buscar_nome();
 float buscar_stock_value();
-
+int buscar_forma_de_pagamento(); // loop
+int buscar_parcelas(); // loop
 
 // Validações e Funções utilitárias
 int valid_product_code(int cod);
@@ -74,6 +86,9 @@ int stricmp(char *s1, char *s2);
 void visualizar_sacola();
 void visualizar_prod(Product prod);
 void visualizar_estoque();
+void visualizar_compra(float total);
+void visualizar_formas_pgto();
+void visualizar_relatorio();
 
 int stock_count = 0;
 int cart_counter = 0;
@@ -123,6 +138,9 @@ int main() {
                 limpar_tela();
                 submenu_vendas();
                 break;
+            case 3:
+                printf("\nQuitting...\n");
+                return 0;
             default:
                 limpar_tela();
                 printf("Opcao invalida. Tente novamente.\n");
@@ -155,6 +173,8 @@ void submenu_produtos() {
 }
 
 void prod_exec(int opt) {
+    int update_status, del_status;
+
     switch (opt)
     {
         case 1:
@@ -164,19 +184,13 @@ void prod_exec(int opt) {
             cadastrar_estoque();
             break;
         case 3:
-            visualizar_estoque();
-
-            // procura e atualiza
-            int update_status = pesquisa_prod(buscar_cod("Qual produto quer atualizar (digite o codigo): ", is_existent), atualizar_estoque);
-
+            update_status = pesquisa_prod(buscar_cod("codigo do produto para atualizar: ", is_existent), atualizar_estoque); // procura e atualiza
             if (update_status < 0)
                 printf("\nProduto não encontrado!\n");
+
             break;
         case 4:
-            visualizar_estoque();
-
-            // procura e excluir
-            int del_status = pesquisa_prod(buscar_cod("Digite o codigo do produto para excluir: ", is_existent), excluir_item);
+            del_status = pesquisa_prod(buscar_cod("codigo do produto para excluir: ", is_existent), excluir_item); // procura e excluir
 
             if (del_status < 0)
                 printf("\nProduto não encontrado!\n");
@@ -207,15 +221,12 @@ void cadastrar_estoque() {
 
     int cod = buscar_cod("Digite o codigo do cadastro: ", valid_product_code);
     char* nome = buscar_nome(); // DONE validate if the name does not exist already
-    // printf("%s", nome);
     int quantidade = buscar_quantidade();
     float valor = buscar_stock_value();
     
     p = new_prod;
-    // printf("p foi atualizado");
     
     p[stock_count].cod = cod;
-    // printf("p")
     strcpy(p[stock_count].name, nome);
     p[stock_count].stock = quantidade;
     p[stock_count].price = valor;
@@ -224,6 +235,7 @@ void cadastrar_estoque() {
 }
 
 void atualizar_estoque(int stock_index) {
+    visualizar_estoque();
     int opt;
     Product prod = p[stock_index];
     
@@ -288,6 +300,8 @@ void atualizar_estoque(int stock_index) {
 }
 
 void excluir_item(int stock_index) {
+    visualizar_estoque();
+
     // Confirmar se o usuario realmente quer excluir o produto
     if (authorized("Realmente quer excluir este produto?")) {
         // mandar o produto para excluir pro fim do vetor
@@ -391,7 +405,7 @@ void submenu_vendas() {
         
         // Executar a opcao selecionado
         vendas_exec(opt);
-    } while (opt != 7);
+    } while (opt != 3);
 }
 
 void vendas_exec(int opt) {
@@ -404,7 +418,7 @@ void vendas_exec(int opt) {
             break;
         case 3:
             printf("\nVoltando...\n");
-            break;
+            return;
         default:
             printf("Opção Invalida, tenta novamente...");
             break;
@@ -413,15 +427,14 @@ void vendas_exec(int opt) {
 
 void realizar_venda() {
     int cod;
+    float total;
 
     while (1) {
         visualizar_estoque();
         cod = buscar_cod("\nDigite o código do item desejado: ", is_existent);
 
-        limpar_tela();
-
-        int update_status = update_cart(cod);
-        if (!update_status)
+        
+        if (!update_cart(cod)) // senao atualizou com successo, repetir o loop
             continue;
 
         printf("Cart updated Successfully!\n");
@@ -437,12 +450,30 @@ void realizar_venda() {
         }
     }
 
-    // cobrança aqui... 
+    total = calc_total();
+
+    // Visualizar o cupom fiscal
+    visualizar_compra(total);
+    
+    if (!authorized("Gostaria de pagar? ")) {
+        // se nao quer pagar, retornar os produtos e apagar tudo na sacola
+        for (int i = 0; i < stock_count; i++) 
+            for (int j = 0; j < cart_counter; j++)
+                if (sacola[j].cod == p[i].cod)
+                    p[i].stock += sacola[j].quantity;
+
+        reset_sacola();
+        return;
+    }
+        
+    cobrar(buscar_forma_de_pagamento(), total);
+    reset_sacola();
 }
 
-
+// TODO put back the stock items if the user cancels
 int update_cart(int cod){
-    Product item = p[cod-1];
+    int product_index = pesquisa_prod(cod, NULL);
+    Product item = p[product_index]; // procurar o index do nosso item
     
     int quant = buscar_quantidade();
     if (quant > item.stock) {
@@ -465,7 +496,7 @@ int update_cart(int cod){
     item.sales_count += quant;
 
     // Atualizar com os novos dados
-    p[cod-1] = item;
+    p[product_index] = item;
     // sacola = new_sacola;
     cart_counter++;
     return 1;
@@ -488,6 +519,150 @@ void ordernar_sacola() {
     }
 }
 
+void reset_sacola() {
+    cart_counter = 0;
+    free(sacola);
+    
+    sacola = (CartItem *)malloc(cart_counter * sizeof(CartItem));
+
+    if (sacola == NULL){
+        printf("Memory allocation failed...\n");
+        exit(1);
+    }
+}
+
+void cobrar(int forma_pgto, int total) {
+    switch (forma_pgto) {
+        case 1:
+            faturar_vista(total);
+            break;
+        case 2:
+            faturar_prazo(total);
+            break;
+        case 3:
+            printf("\nCancelando Pagamento.\n");
+            return;
+    }
+}
+
+float calc_total() {
+    float acc = 0; // Acumulador de valores
+
+    for (int i = 0; i < cart_counter; i++)
+        acc += sacola[i].subtotal;
+
+    return acc;
+}
+
+void faturar_vista(float total) {
+    limpar_tela();
+
+    printf("Total a pagar: R$ %.2f\n", total);
+    float valor_pagar, troco;
+    float novo_total = calc_desconto_vista(total);
+
+    do {
+        printf("Novo total a pagar: R$ %.2f\n", novo_total);
+
+        printf("\nDigite o valor de pgto: ");
+        scanf("%f", &valor_pagar);
+        getchar();
+
+        if (valor_pagar < novo_total) {
+            printf("Valor Invalida\n");
+            continue;
+        }
+
+        troco = valor_pagar - novo_total;
+        printf("\nSeu troco: R$ %.2f\n", troco);
+        printf("Obrigado! Até mais!\n");
+    } while (valor_pagar < novo_total);
+}
+
+
+void faturar_prazo(float total){
+    limpar_tela();
+
+    printf("Total a pagar: R$ %.2f\n", total);
+
+    int parcelas = buscar_parcelas();
+    float valor_pagar = acrescentar_prazo(total, parcelas);
+    
+    float valor_parcelas = valor_pagar / parcelas;
+
+    printf("\nNovo total: R$ %.2f\n", valor_pagar);
+    printf("Parcela de R$ %.2f por %dx\n", valor_parcelas, parcelas);
+}
+
+float calc_desconto_vista(float total) {
+    float novo_total = 0;
+    float desconto = 0;
+
+    if (total <= 50.00)
+        desconto = total * 0.05; // desconto de 5%
+    else if (total > 50.00 && total < 100.00)
+        desconto = total * 0.10; // desconto de 10%
+    else
+        desconto = total * 0.18; // desconto de 18%
+    
+    printf("\nDesconto de R$ %.2f aplicado!\n", desconto);
+    novo_total = total - desconto;
+
+    return novo_total;
+}
+
+float acrescentar_prazo(float total, int parcelas) {
+    float novo_total = 0, acresento = 0;
+
+    if (parcelas > 0 && parcelas <= 3)
+        acresento = (total * 0.05);
+    else if (parcelas > 3)
+        acresento = (total * 0.18);        
+    else
+        printf("\nOpção de parcelas invalida\n");
+
+    novo_total = total + acresento;
+    return novo_total;
+}
+
+int buscar_forma_de_pagamento() {
+    limpar_tela();
+    int opt;
+
+    do {
+        visualizar_formas_pgto();
+        printf("Digite opção: ");
+        scanf("%d", &opt);
+        getchar();
+
+        if (opt < 0 || opt > 3)
+            printf("\nOpção de pagamento inválida\n");
+    } while (opt < 0 || opt > 3);
+
+    return opt;
+}
+
+/**
+ * @brief 
+ * 
+ * @return int 
+ */
+int buscar_parcelas() {
+    int parcelas;
+
+    do {
+        printf("\nDigite o numero de parcelas: ");
+        scanf("%d", &parcelas);
+        getchar();
+
+        if (!is_natural_number(parcelas))
+            printf("\nNúmero de parcelas inválido, digite um valor igual ou acima de 1 parcela.\n");
+
+    } while (!is_natural_number(parcelas));
+
+    return parcelas;
+}
+
 int buscar_cod(char* msg, int (*validar)(int)) {
     int cod;
 
@@ -506,6 +681,7 @@ int buscar_cod(char* msg, int (*validar)(int)) {
 
     return cod;
 }
+
 
 int buscar_quantidade() {
     int quantidade;
@@ -683,7 +859,6 @@ void visualizar_sacola() {
 
 }
 
-
 void visualizar_prod(Product prod) {
     printf("Código\t\tItem\t\tValor\t\tEstoque\n");
     printf("-------------------------------------------------------\n");
@@ -702,4 +877,56 @@ void visualizar_estoque() {
     }
 
     printf("-------------------------------------------------------\n");
+}
+
+void visualizar_compra(float total) {
+    limpar_tela();
+
+    printf("\n\n\t\t\t\t\tReceipt\n\n\n");
+    printf("Seq\t\tItem Name\t\tValor Unit\t\tQuantity\tSubtotal\n");
+    printf("----------------------------------------------------------------------------------------\n");
+
+    for (int i = 0; i < cart_counter; i++) {
+        printf(
+            "%d\t\t%-15s\t\tR$ %.2f\t\t\t%d\t\tR$ %.2f\n",
+            i+1, sacola[i].name, sacola[i].unit_price, sacola[i].quantity, sacola[i].subtotal
+        );
+    }
+
+    printf("----------------------------------------------------------------------------------------\n");
+    printf("Total\t\t\t\t\t\t\t\t\t\tR$ %.2f\n", total);
+    printf("----------------------------------------------------------------------------------------\n");
+}
+
+
+void visualizar_formas_pgto() {
+    printf("\n\nPayment Options:\n");
+    printf("---------------------------------------------------------------------------------------\n");
+    printf("Option\tPayment Type\t\tCondition\t\t\t\tDiscount\n");
+    printf("---------------------------------------------------------------------------------------\n");
+    printf("1\tÀ vista\t\t\tAté (incluindo) R$ 50,00\t\t5%% de desconto\n\n");
+    printf("\t\t\t\tAcima de R$ 50,00 e abaixo de\t\t10%% de desconto\n");
+    printf("\t\t\t\tR$ 100,00\t\t\t\n\n");
+    printf("\t\t\t\tAcima (incluindo) de R$ 100,00\t\t18%% de desconto\n");
+    printf("---------------------------------------------------------------------------------------\n");
+    printf("2\tA prazo\t\t\tEm até (incluindo) 3 parcelas\t\t5%% de acréscimo\n\n");
+    printf("\t\t\t\tAcima de 3 parcelas\t\t\t8%% de acréscimo\n");
+    printf("---------------------------------------------------------------------------------------\n");
+    printf("3\tCancel Payment\n");
+    printf("---------------------------------------------------------------------------------------\n");
+}
+
+void visualizar_relatorio() {
+    // Print table header
+    printf("-------------------------------------------------------------------------------------------------------------------------\n");
+    printf("| SEQ\t|\tNome\t\t\t|\t Quantidade Total\t|\tPreco Unidade\t|\tValor Total\t|\n");
+    printf("-------------------------------------------------------------------------------------------------------------------------\n");
+
+    // Print each row of the table
+    for (int i = 0; i < 5; i++) {
+        printf("|%3d\t|\t%-20s\t|\t%3d\t\t\t|\t%.2f\t\t|\t%.2f\t\t|\n", i, produtos[i], total_quantidades[i], precos[i], total_vendas[i]);
+    }
+
+    // Print table footer
+    printf("-------------------------------------------------------------------------------------------------------------------------\n");
 }
