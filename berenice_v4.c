@@ -28,24 +28,24 @@ CartItem *sacola;
 
 // Funções Principaís para Produtos
 void submenu_produtos();
-void prod_exec(int opt);
+void prod_exec(int opt); // executar as funcoes do submenu
 void cadastrar_estoque();
-void atualizar_estoque(int stock_index);
-void excluir_item(int stock_index);
-void salvar_dados(char* filename);
-void ler_dados(char* filename);
+void atualizar_estoque(int stock_index); //  recebe o index depois da pesquisa
+void excluir_item(int stock_index); // recebe o index depois da pesquisa
+
+void salvar_dados(char* filename); // em binario
+void ler_dados(char* filename); // em binario
 
 // Funções Principaís para Vendas
 void submenu_vendas();
-void vendas_exec(int opt);
+void vendas_exec(int opt); // executar as funcoes do submenu
 void realizar_venda();
 
 // Sacola 
 int update_cart(int cod);
 void ordernar_sacola(); // loop
 void reset_sacola(); // 0
-void save_compra_to_file(float total);
-
+void save_compra_to_file(float total); // Nome do arquivo  no formato "Ano-Mes-Dia_Hora-Minuto-Segundo.txt"
 
 // Cobranças e Calculos 
 void cobrar(int forma_pgto, int total);
@@ -54,7 +54,6 @@ void faturar_vista(float total);
 void faturar_prazo(float total);
 float calc_desconto_vista(float total);
 float acrescentar_prazo(float total, int parcelas);
-
 
 // Coleção de dados
 int buscar_cod(char* msg, int (*validar)(int));
@@ -74,9 +73,9 @@ int authorized(char* msg);
 void limpar_tela();
 
 // Algoritmos e coisas divertidos 
-int pesquisa_prod(int target, void (*callback)(int));
-int pesquisa_sacola(int target, int (*callback)(int));
-int stricmp(char *s1, char *s2);
+int pesquisa_prod(int target, void (*callback)(int)); // pesquisar os dados de estoque e executar um funçao como atualizar, excluir, ou qualquer funçao para o index encontrado
+int pesquisa_sacola(int target, int (*callback)(int)); //  pesquisar os dados na sacola e executar um funçao como atualizar, excluir, ou qualquer funçao para o index encontrado
+int stricmp(char *s1, char *s2); // Função de comparação de string personalizada que não diferencia maiúsculas de minúsculas
 
 
 // Visualizações
@@ -736,7 +735,7 @@ float buscar_stock_value(){
 
         if (valor <= 0)
             printf("\nInvalid value, digite novamente!\n");
-            
+
     } while (valor <= 0);
 
     return valor;
@@ -744,7 +743,6 @@ float buscar_stock_value(){
 
 
 // Validações e Funções utilitárias
-
 int authorized(char* msg) {
     char opt;
 
